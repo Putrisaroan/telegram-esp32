@@ -1,0 +1,92 @@
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <UniversalTelegramBot.h>
+#include <ArduinoJson.h>
+
+const char* ssid = "Wokwi-GUEST";
+const char* password = "";
+
+const char* botToken = "7715357657:AAH7jU_YmMJC5y8L-VQgmDMVeiESDparyiM";
+WiFiClientSecure client;
+UniversalTelegramBot bot(botToken, client);
+
+const int ledPin = 14;
+const int buttonPin = 12; // Pin untuk push button
+bool ledState = LOW;
+bool buttonState = LOW;
+bool lastButtonState = LOW;
+
+unsigned long lastTimeBotRan;
+const int botInterval = 1000;
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(ledPin, OUTPUT);
+  pinMode(buttonPin, INPUT_PULLUP);  // Setup push button dengan internal pull-up resistor
+  digitalWrite(ledPin, LOW);  // Inisialisasi LED ke kondisi mati
+  
+  Serial.print("Menghubungkan ke WiFi");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nTerhubung ke WiFi");
+
+  client.setInsecure();  // Menggunakan koneksi tanpa sertifikat
+
+  bot.sendMessage("5774519852", "Jarvis Asisten Bot Siap", "");
+}
+
+void handleNewMessages(int numNewMessages) {
+  for (int i = 0; i < numNewMessages; i++) {
+    String chat_id = String(bot.messages[i].chat_id);
+    String text = bot.messages[i].text;
+
+    if (text == "nyala") {
+      digitalWrite(ledPin, HIGH);
+      ledState = HIGH;
+      bot.sendMessage(chat_id, "LED Nyala", "");
+      Serial.println("Perintah dari Telegram: Lampu Menyala");
+    }
+    else if (text == "mati") {
+      digitalWrite(ledPin, LOW);
+      ledState = LOW;
+      bot.sendMessage(chat_id, "LED Mati", "");
+      Serial.println("Perintah dari Telegram: Lampu Mati");
+    }
+    else {
+      bot.sendMessage(chat_id, "Perintah tidak dikenal. Gunakan 'nyala' untuk menyalakan dan 'mati' untuk mematikan LED.", "");
+      Serial.println("Pesan tidak dikenali. Mengirim pesan bantuan.");
+    }
+  }
+}
+
+void loop() {
+  if (millis() - lastTimeBotRan > botInterval) {
+    int numNewMessages = bot.getUpdates(bot.last_message_received + 1);
+    while (numNewMessages) {
+      Serial.println("Ada pesan baru dari Telegram");
+      handleNewMessages(numNewMessages);
+      numNewMessages = bot.getUpdates(bot.last_message_received + 1);
+    }
+    lastTimeBotRan = millis();
+  }
+
+  // Cek status tombol
+  buttonState = digitalRead(buttonPin);
+  
+  // Jika tombol ditekan (edge detection)
+  if (buttonState == LOW && lastButtonState == HIGH) {
+    if (ledState == HIGH) {
+      bot.sendMessage("5774519852", "Tombol ditekan, LED sedang menyala.", "");
+      Serial.println("Tombol ditekan: LED sudah menyala.");
+    } else {
+      bot.sendMessage("5774519852", "Tombol ditekan, tetapi LED tidak menyala.", "");
+      Serial.println("Tombol ditekan: LED tidak menyala.");
+    }
+  }
+  
+  lastButtonState = buttonState;  // Update status tombol terakhir
+}
